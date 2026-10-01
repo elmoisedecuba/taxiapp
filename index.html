@@ -140,6 +140,76 @@
   }
   .close-panel:hover{background:#1e293b;color:#e2e8f0;}
 
+  /* ---------- Tarjeta de información del taxi ---------- */
+  #taxiInfo{
+    position:absolute;
+    top:15px; right:15px;
+    width:290px;
+    background:rgba(11,18,32,0.97);
+    backdrop-filter:blur(10px);
+    color:#e2e8f0;
+    border:1px solid #facc15;
+    border-radius:14px;
+    padding:16px;
+    z-index:1002;
+    box-shadow:0 8px 32px rgba(250,204,21,0.2);
+    display:none;
+    animation:slideIn 0.25s ease;
+  }
+  #taxiInfo.visible{display:block;}
+  @keyframes slideIn{
+    from{transform:translateX(20px);opacity:0;}
+    to{transform:translateX(0);opacity:1;}
+  }
+  #taxiInfo .info-header{
+    display:flex;justify-content:space-between;align-items:flex-start;
+    margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #1e293b;
+  }
+  #taxiInfo .info-title{
+    display:flex;align-items:center;gap:8px;
+    font-size:16px;font-weight:700;color:#facc15;
+  }
+  #taxiInfo .info-title .emoji{font-size:22px;}
+  #taxiInfo .info-close{
+    background:transparent;border:none;color:#94a3b8;font-size:18px;
+    cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1;
+  }
+  #taxiInfo .info-close:hover{background:#1e293b;color:#e2e8f0;}
+
+  #taxiInfo .info-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:7px 0;font-size:13px;border-bottom:1px solid #16233c;
+  }
+  #taxiInfo .info-row:last-child{border-bottom:none;}
+  #taxiInfo .info-row .key{color:#94a3b8;}
+  #taxiInfo .info-row .val{color:#e2e8f0;font-weight:600;text-align:right;}
+  #taxiInfo .info-row .val.highlight{color:#38bdf8;}
+  #taxiInfo .info-row .val.warn{color:#facc15;}
+  #taxiInfo .info-row .val.ok{color:#22c55e;}
+  #taxiInfo .info-row .val.bad{color:#f87171;}
+
+  #taxiInfo .info-badge{
+    display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;
+    font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  }
+  #taxiInfo .info-badge.free{background:rgba(34,197,94,.2);color:#22c55e;border:1px solid #22c55e;}
+  #taxiInfo .info-badge.busy{background:rgba(250,204,21,.2);color:#facc15;border:1px solid #facc15;}
+  #taxiInfo .info-badge.found{background:rgba(56,189,248,.2);color:#38bdf8;border:1px solid #38bdf8;}
+
+  #taxiInfo .info-coords{
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:11px;color:#64748b;margin-top:8px;
+    background:#0b1220;padding:6px 8px;border-radius:6px;
+    text-align:center;letter-spacing:.3px;
+  }
+
+  #taxiInfo .info-actions{
+    display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;
+  }
+  #taxiInfo .info-actions button{
+    font-size:12px;padding:7px 8px;
+  }
+
   /* Puntos en el mapa */
   .dot-wrap{background:none;border:none;}
   .dot{
@@ -156,6 +226,10 @@
     0%{transform:scale(.7);opacity:.85;}
     100%{transform:scale(2.2);opacity:0;}
   }
+  /* Anillo de selección para el taxi clickeado */
+  .dot.selected{
+    box-shadow:0 0 0 3px #fff, 0 0 0 6px #facc15, 0 2px 10px rgba(0,0,0,.6);
+  }
 
   .legend{
     background:rgba(11,18,32,.92);color:#e2e8f0;padding:8px 11px;border-radius:9px;
@@ -170,6 +244,7 @@
   @media (max-width:760px){
     .panel{width:calc(100% - 30px); max-height:60vh; top:15px; left:15px;}
     #togglePanel{top:auto; bottom:15px; left:15px;}
+    #taxiInfo{width:calc(100% - 30px); top:auto; bottom:80px; right:15px; left:15px;}
   }
 </style>
 </head>
@@ -216,6 +291,39 @@
   <ul id="matches"></ul>
 </aside>
 
+<!-- Tarjeta de información del taxi -->
+<div id="taxiInfo">
+  <div class="info-header">
+    <div class="info-title"><span class="emoji">🚕</span><span id="tiNombre">Taxi</span></div>
+    <button class="info-close" id="tiCerrar" title="Cerrar">✕</button>
+  </div>
+  <div class="info-row">
+    <span class="key">Estado</span>
+    <span class="val" id="tiEstado"><span class="info-badge free">Libre</span></span>
+  </div>
+  <div class="info-row">
+    <span class="key">Distancia a ti</span>
+    <span class="val highlight" id="tiDistUser">--</span>
+  </div>
+  <div class="info-row">
+    <span class="key">Cliente más cercano</span>
+    <span class="val" id="tiClienteCercano">--</span>
+  </div>
+  <div class="info-row">
+    <span class="key">Distancia al cliente</span>
+    <span class="val" id="tiDistCliente">--</span>
+  </div>
+  <div class="info-row">
+    <span class="key">Velocidad</span>
+    <span class="val" id="tiVelocidad">--</span>
+  </div>
+  <div class="info-coords" id="tiCoords">lat, lng</div>
+  <div class="info-actions">
+    <button id="tiCentrar">🎯 Centrar</button>
+    <button id="tiSeguir">📡 Seguir</button>
+  </div>
+</div>
+
 <!-- Contenedor del mapa -->
 <div id="map"></div>
 
@@ -224,11 +332,10 @@
 /* =========================================================
    1. MAPA BASE (CartoDB con API Key)
    ========================================================= */
-const CENTER = [23.124975328770415, -82.36314488227693]; // CDMX — cambia por tu ciudad
+const CENTER = [23.124975328770415, -82.36314488227693];
 
 const map = L.map('map', { zoomControl: true }).setView(CENTER, 14);
 
-// ✅ SOLUCIÓN: URL con tu API Key de CartoDB
 const API_KEY = 'cb1_45nc_1_61fa204ffb287c11df956544';
 L.tileLayer(`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${API_KEY}`, {
   maxZoom: 19,
@@ -236,9 +343,10 @@ L.tileLayer(`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=
 }).addTo(map);
 
 /* Capas */
-const linkLayer   = L.layerGroup().addTo(map);
-const clientLayer = L.layerGroup().addTo(map);
-const taxiLayer   = L.layerGroup().addTo(map);
+const linkLayer       = L.layerGroup().addTo(map);
+const nearestLineLayer= L.layerGroup().addTo(map);  // 🆕 línea azul al taxi más cercano
+const clientLayer     = L.layerGroup().addTo(map);
+const taxiLayer       = L.layerGroup().addTo(map);
 
 /* Leyenda */
 const legend = L.control({ position: 'bottomright' });
@@ -289,6 +397,12 @@ function moveBearing(pos, bearing, meters) {
   return L.latLng(pos.lat + dLat, pos.lng + dLng);
 }
 
+function formatDist(m) {
+  if (m === null || m === undefined || !isFinite(m)) return '--';
+  if (m < 1000) return Math.round(m) + ' m';
+  return (m / 1000).toFixed(2) + ' km';
+}
+
 /* =========================================================
    3. ICONOS
    ========================================================= */
@@ -317,6 +431,13 @@ let userLatLng = null;
 let watchId = null;
 let isFollowing = false;
 
+// 🆕 Taxi seleccionado actualmente y si se le está siguiendo
+let selectedTaxi = null;
+let followingTaxi = null;
+
+// Para calcular velocidad aproximada de cada taxi
+let lastPositions = {}; // { taxiId: {latlng, time} }
+
 const TICK_MS = 600;
 const SPEED_M = 14;
 const FOUND_M = 35;
@@ -343,11 +464,20 @@ function addTaxi(latlng, label) {
     id: 'T' + (seq++),
     label: label || ('Taxi ' + (taxis.length + 1)),
     latlng: L.latLng(latlng),
-    heading: Math.random() * Math.PI * 2
+    heading: Math.random() * Math.PI * 2,
+    lastLatLng: L.latLng(latlng),
+    speedKmh: 0
   };
   t.marker = L.marker(t.latlng, { icon: makeDot('#facc15', true) })
     .addTo(taxiLayer)
-    .bindTooltip(() => `<b>${t.label}</b><br>🟡 Taxi activo`, { direction: 'top', offset: [0, -10] });
+    .bindTooltip(() => `<b>${t.label}</b><br>🟡 Taxi activo<br><i>Click para más info</i>`, { direction: 'top', offset: [0, -10] });
+
+  // 🆕 Evento click sobre el taxi → abrir tarjeta de información
+  t.marker.on('click', (e) => {
+    L.DomEvent.stopPropagation(e);
+    selectTaxi(t);
+  });
+
   taxis.push(t);
   updateCounts();
   return t;
@@ -359,6 +489,8 @@ function addTaxi(latlng, label) {
 function tick() {
   if (moving) {
     taxis.forEach(t => {
+      const prevPos = L.latLng(t.latlng);
+
       let best = null, bestD = Infinity;
       clients.forEach(c => {
         const d = haversine(t.latlng, c.latlng);
@@ -379,30 +511,60 @@ function tick() {
         t.latlng = moveBearing(t.latlng, t.heading, SPEED_M * 0.75);
         t.marker.setLatLng(t.latlng);
       }
+
+      // Calcular velocidad aproximada (m/s * 3.6 = km/h)
+      const dist = haversine(prevPos, t.latlng);
+      const kmh = (dist / (TICK_MS / 1000)) * 3.6;
+      t.speedKmh = kmh;
     });
   }
+
   updateMatches();
   updateNearestTaxiDistance();
+  updateTaxiInfoIfOpen();
 }
 
 /* =========================================================
-   7. DISTANCIA AL TAXI MÁS CERCANO
+   7. LÍNEA AZUL AL TAXI MÁS CERCANO + DISTANCIA
    ========================================================= */
 function updateNearestTaxiDistance() {
   const el = document.getElementById('nearestTaxiDist');
+  nearestLineLayer.clearLayers();
+
   if (!userLatLng || taxis.length === 0) {
     el.innerHTML = '-- <small>m</small>';
     return;
   }
-  let minDist = Infinity;
+
+  let nearest = null, minDist = Infinity;
   taxis.forEach(t => {
     const d = haversine(userLatLng, t.latlng);
-    if (d < minDist) minDist = d;
+    if (d < minDist) { minDist = d; nearest = t; }
   });
-  if (minDist === Infinity) {
-    el.innerHTML = '-- <small>m</small>';
-  } else {
+
+  if (nearest) {
+    // Actualizar indicador en el panel
     el.innerHTML = `${Math.round(minDist)} <small>m</small>`;
+
+    // 🆕 Dibujar línea azul gruesa desde el usuario al taxi más cercano
+    L.polyline([userLatLng, nearest.latlng], {
+      color: '#38bdf8',
+      weight: 4,
+      opacity: 0.9,
+      dashArray: '10 6',
+      lineCap: 'round'
+    }).addTo(nearestLineLayer);
+
+    // Pequeño círculo azul en el taxi más cercano como marca
+    L.circleMarker(nearest.latlng, {
+      radius: 12,
+      color: '#38bdf8',
+      weight: 2,
+      fill: false,
+      opacity: 0.8
+    }).addTo(nearestLineLayer);
+  } else {
+    el.innerHTML = '-- <small>m</small>';
   }
 }
 
@@ -464,7 +626,128 @@ function updateCounts() {
 }
 
 /* =========================================================
-   9. SEGUIMIENTO DE UBICACIÓN EN TIEMPO REAL
+   9. SELECCIÓN Y TARJETA DE INFORMACIÓN DEL TAXI
+   ========================================================= */
+function selectTaxi(taxi) {
+  // Quitar selección previa
+  if (selectedTaxi && selectedTaxi.marker) {
+    selectedTaxi.marker.setIcon(makeDot('#facc15', true));
+  }
+
+  selectedTaxi = taxi;
+
+  // Cambiar el icono para mostrar el anillo de selección
+  taxi.marker.setIcon(L.divIcon({
+    className: 'dot-wrap',
+    html: `<span class="dot pulse selected" style="--c:#facc15"></span>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9]
+  }));
+
+  // Mostrar la tarjeta
+  const info = document.getElementById('taxiInfo');
+  info.classList.add('visible');
+
+  updateTaxiInfoIfOpen();
+}
+
+function closeTaxiInfo() {
+  if (selectedTaxi && selectedTaxi.marker) {
+    selectedTaxi.marker.setIcon(makeDot('#facc15', true));
+  }
+  selectedTaxi = null;
+  followingTaxi = null;
+  document.getElementById('taxiInfo').classList.remove('visible');
+  document.getElementById('tiSeguir').classList.remove('active');
+  document.getElementById('tiSeguir').textContent = '📡 Seguir';
+}
+
+/* 🆕 Actualiza el contenido de la tarjeta con datos en vivo */
+function updateTaxiInfoIfOpen() {
+  if (!selectedTaxi) return;
+  const t = selectedTaxi;
+
+  // Nombre
+  document.getElementById('tiNombre').textContent = t.label;
+
+  // Distancia del usuario al taxi
+  const distUser = userLatLng ? haversine(userLatLng, t.latlng) : null;
+  document.getElementById('tiDistUser').textContent = distUser !== null ? formatDist(distUser) : 'Sin ubicación';
+
+  // Cliente más cercano al taxi
+  let nearestClient = null, minD = Infinity;
+  clients.forEach(c => {
+    const d = haversine(t.latlng, c.latlng);
+    if (d < minD) { minD = d; nearestClient = c; }
+  });
+
+  if (nearestClient) {
+    document.getElementById('tiClienteCercano').textContent = nearestClient.label;
+    document.getElementById('tiDistCliente').textContent = formatDist(minD);
+  } else {
+    document.getElementById('tiClienteCercano').textContent = '—';
+    document.getElementById('tiDistCliente').textContent = '—';
+  }
+
+  // Estado
+  const estadoEl = document.getElementById('tiEstado');
+  if (nearestClient && minD <= FOUND_M) {
+    estadoEl.innerHTML = '<span class="info-badge found">✅ Con cliente</span>';
+  } else if (nearestClient && minD <= radius) {
+    estadoEl.innerHTML = '<span class="info-badge busy">🟡 En camino</span>';
+  } else {
+    estadoEl.innerHTML = '<span class="info-badge free">🟢 Libre</span>';
+  }
+
+  // Velocidad
+  const kmh = t.speedKmh || 0;
+  let velClass = 'val';
+  if (kmh < 1) velClass += ' bad';
+  else if (kmh > 40) velClass += ' warn';
+  else velClass += ' ok';
+  document.getElementById('tiVelocidad').innerHTML =
+    `<span class="${velClass}">${kmh.toFixed(1)} km/h</span>`;
+
+  // Coordenadas
+  document.getElementById('tiCoords').textContent =
+    `${t.latlng.lat.toFixed(6)}, ${t.latlng.lng.toFixed(6)}`;
+}
+
+// Botón cerrar
+document.getElementById('tiCerrar').onclick = closeTaxiInfo;
+
+// Botón centrar en el taxi
+document.getElementById('tiCentrar').onclick = () => {
+  if (selectedTaxi) {
+    map.setView(selectedTaxi.latlng, Math.max(map.getZoom(), 16), { animate: true });
+  }
+};
+
+// Botón seguir al taxi (mantiene el mapa centrado en él)
+document.getElementById('tiSeguir').onclick = function() {
+  if (!selectedTaxi) return;
+  if (followingTaxi === selectedTaxi) {
+    followingTaxi = null;
+    this.classList.remove('active');
+    this.textContent = '📡 Seguir';
+  } else {
+    followingTaxi = selectedTaxi;
+    this.classList.add('active');
+    this.textContent = '⏸ Dejar de seguir';
+    map.setView(selectedTaxi.latlng, Math.max(map.getZoom(), 16), { animate: true });
+  }
+};
+
+// En cada tick, si estamos siguiendo un taxi, centrar el mapa en él
+function updateFollowTaxi() {
+  if (followingTaxi && followingTaxi.marker) {
+    map.panTo(followingTaxi.latlng, { animate: true, duration: 0.4 });
+  }
+}
+setInterval(updateFollowTaxi, 700);
+
+/* =========================================================
+   10. SEGUIMIENTO DE UBICACIÓN EN TIEMPO REAL
    ========================================================= */
 function startTracking() {
   if (!navigator.geolocation) {
@@ -514,11 +797,10 @@ function startTracking() {
 }
 
 /* =========================================================
-   10. CONTROLES DE UI
+   11. CONTROLES DE UI
    ========================================================= */
 const $ = id => document.getElementById(id);
 
-// ✅ Lógica de mostrar/ocultar panel
 const panel = $('panel');
 const togglePanelBtn = $('togglePanel');
 const closePanelBtn = $('closePanel');
@@ -526,14 +808,12 @@ const closePanelBtn = $('closePanel');
 function togglePanelVisibility() {
   const isHidden = panel.classList.toggle('hidden');
   togglePanelBtn.classList.toggle('visible', isHidden);
-  // Refrescar el mapa después de la transición
   setTimeout(() => map.invalidateSize(), 320);
 }
 
 closePanelBtn.onclick = togglePanelVisibility;
 togglePanelBtn.onclick = togglePanelVisibility;
 
-// Rango
 $('radius').addEventListener('input', e => {
   radius = +e.target.value;
   $('radLabel').textContent = radius + ' m';
@@ -551,6 +831,11 @@ $('addClient').onclick = () => setAddMode('client');
 $('addTaxi').onclick   = () => setAddMode('taxi');
 
 map.on('click', e => {
+  // Click en el mapa vacío → cerrar tarjeta si está abierta
+  if (selectedTaxi) {
+    closeTaxiInfo();
+    return;
+  }
   if (addMode === 'client')      addClient(e.latlng);
   else if (addMode === 'taxi')   addTaxi(e.latlng);
   if (addMode) setAddMode(addMode);
@@ -559,7 +844,8 @@ map.on('click', e => {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    if (addMode) setAddMode(addMode);
+    if (selectedTaxi) closeTaxiInfo();
+    else if (addMode) setAddMode(addMode);
     else if (!panel.classList.contains('hidden')) togglePanelVisibility();
   }
 });
@@ -593,25 +879,34 @@ $('locate').onclick = () => {
 
 $('reset').onclick = () => generateInitial();
 
-// Desactivar "seguir" si el usuario arrastra el mapa
 map.on('dragstart', () => {
   if (isFollowing) {
     isFollowing = false;
     $('followToggle').classList.remove('active');
   }
+  // Si estamos siguiendo un taxi y el usuario arrastra, dejamos de seguirlo
+  if (followingTaxi) {
+    followingTaxi = null;
+    const btn = $('tiSeguir');
+    if (btn) { btn.classList.remove('active'); btn.textContent = '📡 Seguir'; }
+  }
 });
 
 /* =========================================================
-   11. ARRANQUE
+   12. ARRANQUE
    ========================================================= */
 function generateInitial() {
   clientLayer.clearLayers();
   taxiLayer.clearLayers();
   linkLayer.clearLayers();
+  nearestLineLayer.clearLayers();
   clients = [];
   taxis = [];
   seq = 1;
   userClient = null;
+  selectedTaxi = null;
+  followingTaxi = null;
+  closeTaxiInfo();
 
   moving = true;
   $('toggleMove').textContent = '⏸ Pausar taxis';
