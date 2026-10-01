@@ -29,6 +29,8 @@ input{width:100%;padding:14px;border-radius:10px;border:1px solid #253552;backgr
 #sheet{right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));max-width:440px;max-height:55vh}
 #list{top:calc(12px + env(safe-area-inset-top,0px));left:56px;right:70px;max-width:380px;max-height:50vh}
 body.big #sheet,body.big #list{font-size:19px}
+#net{position:absolute;z-index:1000;top:calc(12px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);padding:6px 12px;border-radius:20px;font-size:12px;background:rgba(11,18,32,.93);border:1px solid #1e293b;white-space:nowrap}
+#net.ok{color:#22c55e}#net.off{color:#facc15}
 h2{font-size:1.15em}
 small,.muted{color:#94a3b8}
 #dyn{color:#38bdf8;font-weight:600}
@@ -74,6 +76,7 @@ small,.muted{color:#94a3b8}
 </div>
 <div id="list" class="hide" aria-label="Lista de cercanos"></div>
 <div id="sheet" class="hide"></div>
+<div id="net" class="off" aria-live="polite"></div>
 <div id="live" class="sr" role="status" aria-live="polite"></div>
 
 <script>
@@ -100,12 +103,45 @@ const ss = {
   get(k){ try{ return JSON.parse(sessionStorage.getItem(k)); }catch(e){ return null; } },
   set(k,v){ try{ sessionStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
-const ls = {
+const lsLocal = {
   get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
   set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} },
   del(k){ try{ localStorage.removeItem(k); }catch(e){} },
   keys(p){ const o=[]; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith(p)) o.push(k); } }catch(e){} return o; }
 };
+/* Con servidor (server.js) todo pasa por WebSocket; sin servidor, solo entre pestañas del mismo navegador */
+let ws = null, online = false;
+const mem = new Map();
+const wsSend = m => { try{ ws.send(JSON.stringify(m)); }catch(e){} };
+const clone = v => JSON.parse(JSON.stringify(v));
+const ls = {
+  get(k){ return online ? (mem.has(k) ? clone(mem.get(k)) : null) : lsLocal.get(k); },
+  set(k,v){ if (!online) return lsLocal.set(k,v); mem.set(k, clone(v)); wsSend({t:'set', k, v}); },
+  del(k){ if (!online) return lsLocal.del(k); mem.delete(k); wsSend({t:'del', k}); },
+  keys(p){ return online ? [...mem.keys()].filter(k => k.startsWith(p)) : lsLocal.keys(p); }
+};
+const WS_URL = new URLSearchParams(location.search).get('server') ||
+  (location.protocol==='file:' ? '' : (location.protocol==='https:' ? 'wss://' : 'ws://') + location.host);
+function setNet(){
+  const n = $('net'); n.className = online ? 'ok' : 'off';
+  n.textContent = online ? '● En línea' : '● Sin servidor: solo esta pestaña';
+}
+function connect(){
+  setNet();
+  if (!WS_URL) return;
+  try{ ws = new WebSocket(WS_URL); }catch(e){ return; }
+  ws.onopen = () => { online = true; mem.clear(); setNet(); };
+  ws.onmessage = e => {
+    let m; try{ m = JSON.parse(e.data); }catch(x){ return; }
+    const put = (k,v,age) => { v.ts = Date.now() - (age||0); mem.set(k,v); }; // hora local de recepción
+    if (m.t==='all'){ mem.clear(); m.items.forEach(([k,v,age]) => put(k,v,age)); publish(); }
+    else if (m.t==='set') put(m.k, m.v);
+    else if (m.t==='del') mem.delete(m.k);
+    render();
+  };
+  ws.onclose = () => { online = false; setNet(); setTimeout(connect, 3000); };
+  ws.onerror = () => {};
+}
 const DONE = ['fin','cancelado','rechazado'];
 const isDone = t => DONE.includes(t.status);
 
@@ -205,6 +241,7 @@ function start(){
     noGps, {enableHighAccuracy:true, maximumAge:5000, timeout:15000});
   else noGps();
 
+  connect();
   setInterval(() => { publish(); render(); }, 2000);
   addEventListener('storage', e => { if (e.key && (e.key.startsWith(UP) || e.key.startsWith(TP))) render(); });
   render();
