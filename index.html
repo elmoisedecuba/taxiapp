@@ -2,926 +2,251 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>TaxiMap · Mapa a pantalla completa</title>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Taxi</title>
 <style>
-  *{box-sizing:border-box; margin:0; padding:0;}
-  html,body{height:100%; width:100%; overflow:hidden; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#0b1220;color:#e2e8f0}
+#map{position:absolute;inset:0;z-index:1}
+.hide{display:none!important}
 
-  #map{
-    position:absolute;
-    top:0; left:0;
-    width:100%; height:100%;
-    z-index:1;
-    background:#0b1220;
-  }
-  #map.adding{cursor:crosshair;}
+/* Bienvenida */
+#welcome{position:absolute;inset:0;z-index:3000;background:#0b1220;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{width:100%;max-width:380px;display:flex;flex-direction:column;gap:12px}
+.card h1{font-size:28px;text-align:center}
+.card p{color:#94a3b8;text-align:center;font-size:14px}
+button,input{font:inherit}
+button{border:0;border-radius:12px;padding:14px;font-weight:600;cursor:pointer;background:#16233c;color:#e2e8f0}
+button:hover{background:#1e2f4d}
+button.main{background:#facc15;color:#0b1220}
+button.alt{background:#22c55e;color:#0b1220}
+input{width:100%;padding:13px;border-radius:10px;border:1px solid #253552;background:#111c31;color:#e2e8f0}
+input:focus{outline:2px solid #38bdf8}
+.link{background:none;color:#94a3b8;padding:6px;font-weight:400}
 
-  /* ---------- Panel lateral flotante ---------- */
-  .panel{
-    position:absolute;
-    top:15px; left:15px;
-    width:330px;
-    max-height:calc(100vh - 30px);
-    background:rgba(11,18,32,0.96);
-    backdrop-filter:blur(8px);
-    color:#e2e8f0;
-    border:1px solid #1e293b;
-    border-radius:14px;
-    padding:18px;
-    display:flex;
-    flex-direction:column;
-    gap:14px;
-    overflow-y:auto;
-    z-index:1000;
-    box-shadow:0 8px 32px rgba(0,0,0,0.5);
-    transition:transform 0.3s ease, opacity 0.3s ease;
-    transform-origin: top left;
-  }
-  .panel.hidden{
-    transform:translateX(-110%);
-    opacity:0;
-    pointer-events:none;
-  }
-
-  .panel h1{font-size:20px;margin:0;letter-spacing:.3px;}
-  .panel .sub{margin:4px 0 0;font-size:12px;color:#94a3b8;}
-
-  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
-  .stat{background:#111c31;border:1px solid #1e293b;border-radius:10px;padding:8px;text-align:center;}
-  .stat span{display:block;font-size:20px;font-weight:700;color:#f8fafc;}
-  .stat small{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;}
-  .stat.green span{color:#22c55e;}
-  .stat.yellow span{color:#facc15;}
-  .stat.blue span{color:#38bdf8;}
-
-  .dist-card{
-    background:linear-gradient(135deg, #1e293b, #0f172a);
-    border:1px solid #38bdf8;
-    border-radius:12px;
-    padding:12px;
-    text-align:center;
-    box-shadow:0 4px 12px rgba(56,189,248,.15);
-  }
-  .dist-card .label{font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;}
-  .dist-card .value{font-size:26px;font-weight:700;color:#38bdf8;margin:4px 0 0;}
-  .dist-card .value small{font-size:14px;font-weight:400;color:#94a3b8;}
-
-  .control label{font-size:12px;color:#94a3b8;display:block;margin-bottom:6px;}
-  .control b{color:#38bdf8;}
-  input[type=range]{width:100%;accent-color:#38bdf8;}
-
-  .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-  button{
-    background:#16233c;border:1px solid #253552;color:#e2e8f0;border-radius:10px;
-    padding:9px 10px;font-size:13px;cursor:pointer;transition:.15s;font-weight:500;
-    font-family:inherit;
-  }
-  button:hover{background:#1e2f4d;border-color:#3b82f6;}
-  button.active{background:#2563eb;border-color:#60a5fa;color:#fff;}
-  button.wide{grid-column:1/-1;}
-
-  #followToggle.active { background:#38bdf8; border-color:#7dd3fc; color:#0b1220; }
-  #followToggle.active:hover { background:#7dd3fc; }
-
-  .list-header{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#64748b;margin-top:4px;}
-  #matches{list-style:none;display:flex;flex-direction:column;gap:6px;}
-  #matches li{
-    display:flex;justify-content:space-between;align-items:center;gap:8px;
-    background:#111c31;border:1px solid #1e293b;border-left:3px solid #64748b;
-    padding:8px 10px;border-radius:8px;font-size:12.5px;cursor:pointer;transition:.15s;
-  }
-  #matches li:hover{background:#17253d;transform:translateX(2px);}
-  #matches li.found{border-left-color:#38bdf8;background:#0e2136;}
-  #matches li .dist{color:#94a3b8;font-variant-numeric:tabular-nums;white-space:nowrap;}
-  #matches li.found .dist{color:#38bdf8;font-weight:600;}
-  #matches li.empty{display:block;cursor:default;border-left-color:transparent;color:#64748b;line-height:1.5;}
-  #matches li.empty:hover{background:#111c31;transform:none;}
-
-  /* Botón flotante para ocultar/mostrar panel */
-  #togglePanel{
-    position:absolute;
-    top:15px; left:15px;
-    z-index:1001;
-    display:none;
-    align-items:center;
-    gap:6px;
-    padding:10px 16px;
-    font-size:14px;
-    background:rgba(11,18,32,0.9);
-    backdrop-filter:blur(8px);
-    color:#e2e8f0;
-    border:1px solid #1e293b;
-    border-radius:10px;
-    cursor:pointer;
-    font-weight:600;
-    box-shadow:0 4px 16px rgba(0,0,0,0.4);
-    transition:all 0.2s ease;
-  }
-  #togglePanel:hover{background:#1e2f4d;border-color:#3b82f6;}
-  #togglePanel.visible{display:inline-flex;}
-
-  /* Botón de cerrar dentro del panel */
-  .close-panel{
-    position:absolute;
-    top:12px; right:12px;
-    background:transparent;
-    border:none;
-    color:#94a3b8;
-    font-size:20px;
-    cursor:pointer;
-    padding:4px 8px;
-    border-radius:6px;
-    line-height:1;
-    transition:all 0.15s;
-  }
-  .close-panel:hover{background:#1e293b;color:#e2e8f0;}
-
-  /* ---------- Tarjeta de información del taxi ---------- */
-  #taxiInfo{
-    position:absolute;
-    top:15px; right:15px;
-    width:290px;
-    background:rgba(11,18,32,0.97);
-    backdrop-filter:blur(10px);
-    color:#e2e8f0;
-    border:1px solid #facc15;
-    border-radius:14px;
-    padding:16px;
-    z-index:1002;
-    box-shadow:0 8px 32px rgba(250,204,21,0.2);
-    display:none;
-    animation:slideIn 0.25s ease;
-  }
-  #taxiInfo.visible{display:block;}
-  @keyframes slideIn{
-    from{transform:translateX(20px);opacity:0;}
-    to{transform:translateX(0);opacity:1;}
-  }
-  #taxiInfo .info-header{
-    display:flex;justify-content:space-between;align-items:flex-start;
-    margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #1e293b;
-  }
-  #taxiInfo .info-title{
-    display:flex;align-items:center;gap:8px;
-    font-size:16px;font-weight:700;color:#facc15;
-  }
-  #taxiInfo .info-title .emoji{font-size:22px;}
-  #taxiInfo .info-close{
-    background:transparent;border:none;color:#94a3b8;font-size:18px;
-    cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1;
-  }
-  #taxiInfo .info-close:hover{background:#1e293b;color:#e2e8f0;}
-
-  #taxiInfo .info-row{
-    display:flex;justify-content:space-between;align-items:center;
-    padding:7px 0;font-size:13px;border-bottom:1px solid #16233c;
-  }
-  #taxiInfo .info-row:last-child{border-bottom:none;}
-  #taxiInfo .info-row .key{color:#94a3b8;}
-  #taxiInfo .info-row .val{color:#e2e8f0;font-weight:600;text-align:right;}
-  #taxiInfo .info-row .val.highlight{color:#38bdf8;}
-  #taxiInfo .info-row .val.warn{color:#facc15;}
-  #taxiInfo .info-row .val.ok{color:#22c55e;}
-  #taxiInfo .info-row .val.bad{color:#f87171;}
-
-  #taxiInfo .info-badge{
-    display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;
-    font-weight:700;text-transform:uppercase;letter-spacing:.5px;
-  }
-  #taxiInfo .info-badge.free{background:rgba(34,197,94,.2);color:#22c55e;border:1px solid #22c55e;}
-  #taxiInfo .info-badge.busy{background:rgba(250,204,21,.2);color:#facc15;border:1px solid #facc15;}
-  #taxiInfo .info-badge.found{background:rgba(56,189,248,.2);color:#38bdf8;border:1px solid #38bdf8;}
-
-  #taxiInfo .info-coords{
-    font-family:ui-monospace,Menlo,Consolas,monospace;
-    font-size:11px;color:#64748b;margin-top:8px;
-    background:#0b1220;padding:6px 8px;border-radius:6px;
-    text-align:center;letter-spacing:.3px;
-  }
-
-  #taxiInfo .info-actions{
-    display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;
-  }
-  #taxiInfo .info-actions button{
-    font-size:12px;padding:7px 8px;
-  }
-
-  /* Puntos en el mapa */
-  .dot-wrap{background:none;border:none;}
-  .dot{
-    position:relative;display:block;width:18px;height:18px;border-radius:50%;
-    background:var(--c);border:2px solid #fff;
-    box-shadow:0 1px 5px rgba(0,0,0,.45);
-  }
-  .dot.pulse::after{
-    content:"";position:absolute;left:50%;top:50%;width:18px;height:18px;
-    margin:-9px 0 0 -9px;border-radius:50%;border:2px solid var(--c);
-    animation:pulse 1.8s ease-out infinite;
-  }
-  @keyframes pulse{
-    0%{transform:scale(.7);opacity:.85;}
-    100%{transform:scale(2.2);opacity:0;}
-  }
-  /* Anillo de selección para el taxi clickeado */
-  .dot.selected{
-    box-shadow:0 0 0 3px #fff, 0 0 0 6px #facc15, 0 2px 10px rgba(0,0,0,.6);
-  }
-
-  .legend{
-    background:rgba(11,18,32,.92);color:#e2e8f0;padding:8px 11px;border-radius:9px;
-    font-size:12px;line-height:1.8;border:1px solid #1e293b;
-  }
-  .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;vertical-align:middle;}
-  .legend .g{background:#22c55e;}
-  .legend .y{background:#facc15;}
-  .legend .b{background:#38bdf8;}
-  .legend .l{background:#94a3b8;}
-
-  @media (max-width:760px){
-    .panel{width:calc(100% - 30px); max-height:60vh; top:15px; left:15px;}
-    #togglePanel{top:auto; bottom:15px; left:15px;}
-    #taxiInfo{width:calc(100% - 30px); top:auto; bottom:80px; right:15px; left:15px;}
-  }
+/* Mapa */
+.bar{position:absolute;z-index:1000;display:flex;gap:8px;top:calc(12px + env(safe-area-inset-top,0px));right:12px}
+.bar button{padding:10px 14px;background:rgba(11,18,32,.92);border:1px solid #1e293b;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+#status{position:absolute;z-index:1000;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));max-width:420px;
+  background:rgba(11,18,32,.95);border:1px solid #1e293b;border-radius:14px;padding:14px;box-shadow:0 8px 28px rgba(0,0,0,.5)}
+#status b{color:#38bdf8}
+#status small{color:#94a3b8;display:block;margin-top:4px}
+.dot{display:block;width:20px;height:20px;border-radius:50%;background:var(--c);border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.5)}
+.dot.me{animation:p 1.8s infinite}
+@keyframes p{0%{box-shadow:0 0 0 0 rgba(56,189,248,.8)}100%{box-shadow:0 0 0 18px rgba(56,189,248,0)}}
+.leaflet-container{background:#dde3ea}
+.pop b{font-size:14px}.pop div{margin-top:3px;font-size:13px}
+.pop a{color:#2563eb;font-weight:600}
 </style>
 </head>
 <body>
 
-<!-- Botón para mostrar el panel cuando está oculto -->
-<button id="togglePanel">☰ Opciones</button>
-
-<!-- Panel lateral flotante -->
-<aside class="panel" id="panel">
-  <button class="close-panel" id="closePanel" title="Ocultar panel">✕</button>
-
-  <header>
-    <h1>🚕 TaxiMap</h1>
-    <p class="sub">Clientes 🟢, taxis 🟡 y tú 🔵</p>
-  </header>
-
-  <div class="stats">
-    <div class="stat green"><span id="cCount">0</span><small>Clientes</small></div>
-    <div class="stat yellow"><span id="tCount">0</span><small>Taxis</small></div>
-    <div class="stat blue"><span id="mCount">0</span><small>Encuentros</small></div>
+<div id="welcome">
+  <div class="card" id="stepRole">
+    <h1>🚕 Taxi</h1>
+    <p>¿Cómo vas a usar la app?</p>
+    <button class="alt" data-role="cliente">🙋 Soy cliente</button>
+    <button class="main" data-role="taxista">🚕 Soy taxista</button>
   </div>
-
-  <div class="dist-card">
-    <div class="label">Taxi más cercano</div>
-    <div class="value" id="nearestTaxiDist">-- <small>m</small></div>
-  </div>
-
-  <div class="control">
-    <label>Rango de encuentro: <b id="radLabel">500 m</b></label>
-    <input type="range" id="radius" min="100" max="2000" step="50" value="500">
-  </div>
-
-  <div class="btns">
-    <button id="addClient">+ 🟢 Cliente</button>
-    <button id="addTaxi">+ 🟡 Taxi</button>
-    <button id="toggleMove">⏸ Pausar taxis</button>
-    <button id="locate">📍 Mi ubicación</button>
-    <button id="followToggle" class="wide">🎯 Seguir mi ubicación</button>
-    <button id="reset" class="wide">♻ Reiniciar simulación</button>
-  </div>
-
-  <div class="list-header">Encuentros cercanos</div>
-  <ul id="matches"></ul>
-</aside>
-
-<!-- Tarjeta de información del taxi -->
-<div id="taxiInfo">
-  <div class="info-header">
-    <div class="info-title"><span class="emoji">🚕</span><span id="tiNombre">Taxi</span></div>
-    <button class="info-close" id="tiCerrar" title="Cerrar">✕</button>
-  </div>
-  <div class="info-row">
-    <span class="key">Estado</span>
-    <span class="val" id="tiEstado"><span class="info-badge free">Libre</span></span>
-  </div>
-  <div class="info-row">
-    <span class="key">Distancia a ti</span>
-    <span class="val highlight" id="tiDistUser">--</span>
-  </div>
-  <div class="info-row">
-    <span class="key">Cliente más cercano</span>
-    <span class="val" id="tiClienteCercano">--</span>
-  </div>
-  <div class="info-row">
-    <span class="key">Distancia al cliente</span>
-    <span class="val" id="tiDistCliente">--</span>
-  </div>
-  <div class="info-row">
-    <span class="key">Velocidad</span>
-    <span class="val" id="tiVelocidad">--</span>
-  </div>
-  <div class="info-coords" id="tiCoords">lat, lng</div>
-  <div class="info-actions">
-    <button id="tiCentrar">🎯 Centrar</button>
-    <button id="tiSeguir">📡 Seguir</button>
+  <div class="card hide" id="stepForm">
+    <h1 id="formTitle"></h1>
+    <input id="fNombre" placeholder="Nombre" autocomplete="name">
+    <input id="fTel" placeholder="Número de teléfono" type="tel" autocomplete="tel">
+    <input id="fMat" placeholder="Matrícula" class="driver" autocapitalize="characters">
+    <input id="fColor" placeholder="Color del vehículo" class="driver">
+    <p id="err" class="hide" style="color:#f87171">No se pudo cargar el mapa. Revisa tu conexión e inténtalo de nuevo.</p>
+    <button class="main" id="enter">Entrar</button>
+    <button class="link" id="back">← Volver</button>
   </div>
 </div>
 
-<!-- Contenedor del mapa -->
 <div id="map"></div>
+<div class="bar hide" id="bar">
+  <button id="fs" title="Pantalla completa">⛶</button>
+  <button id="exit" title="Cambiar rol">Salir</button>
+</div>
+<div id="status" class="hide"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-/* =========================================================
-   1. MAPA BASE (CartoDB con API Key)
-   ========================================================= */
-const CENTER = [23.124975328770415, -82.36314488227693];
-
-const map = L.map('map', { zoomControl: true }).setView(CENTER, 14);
-
-const API_KEY = 'cb1_45nc_1_61fa204ffb287c11df956544';
-L.tileLayer(`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${API_KEY}`, {
-  maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-}).addTo(map);
-
-/* Capas */
-const linkLayer       = L.layerGroup().addTo(map);
-const nearestLineLayer= L.layerGroup().addTo(map);  // 🆕 línea azul al taxi más cercano
-const clientLayer     = L.layerGroup().addTo(map);
-const taxiLayer       = L.layerGroup().addTo(map);
-
-/* Leyenda */
-const legend = L.control({ position: 'bottomright' });
-legend.onAdd = () => {
-  const div = L.DomUtil.create('div', 'legend');
-  div.innerHTML =
-    '<div><i class="g"></i>Cliente activo</div>' +
-    '<div><i class="y"></i>Taxi activo</div>' +
-    '<div><i class="b"></i>Tú (mi ubicación)</div>' +
-    '<div><i class="l"></i>Dentro del rango</div>';
-  return div;
-};
-legend.addTo(map);
-
-/* =========================================================
-   2. UTILIDADES GEOGRÁFICAS
-   ========================================================= */
-const R_TIERRA = 6371000;
-
-function haversine(a, b) {
-  const rad = Math.PI / 180;
-  const dLat = (b.lat - a.lat) * rad;
-  const dLng = (b.lng - a.lng) * rad;
-  const s = Math.sin(dLat / 2) ** 2 +
-            Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
-  return 2 * R_TIERRA * Math.asin(Math.sqrt(s));
-}
-
-function stepTowards(from, to, meters) {
-  const dist = haversine(from, to);
-  if (dist <= meters || dist === 0) return L.latLng(to.lat, to.lng);
-  const f = meters / dist;
-  return L.latLng(from.lat + (to.lat - from.lat) * f,
-                  from.lng + (to.lng - from.lng) * f);
-}
-
-function randomAround(center, maxMeters) {
-  const r = maxMeters * Math.sqrt(Math.random());
-  const t = Math.random() * 2 * Math.PI;
-  const lat = center[0] + (r * Math.cos(t)) / 111320;
-  const lng = center[1] + (r * Math.sin(t)) / (111320 * Math.cos(center[0] * Math.PI / 180));
-  return L.latLng(lat, lng);
-}
-
-function moveBearing(pos, bearing, meters) {
-  const dLat = (meters * Math.cos(bearing)) / 111320;
-  const dLng = (meters * Math.sin(bearing)) / (111320 * Math.cos(pos.lat * Math.PI / 180));
-  return L.latLng(pos.lat + dLat, pos.lng + dLng);
-}
-
-function formatDist(m) {
-  if (m === null || m === undefined || !isFinite(m)) return '--';
-  if (m < 1000) return Math.round(m) + ' m';
-  return (m / 1000).toFixed(2) + ' km';
-}
-
-/* =========================================================
-   3. ICONOS
-   ========================================================= */
-function makeDot(color, pulse) {
-  const size = 18;
-  return L.divIcon({
-    className: 'dot-wrap',
-    html: `<span class="dot${pulse ? ' pulse' : ''}" style="--c:${color}"></span>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2]
-  });
-}
-
-/* =========================================================
-   4. ESTADO
-   ========================================================= */
-let clients = [];
-let taxis = [];
-let radius = 500;
-let moving = true;
-let addMode = null;
-let seq = 1;
-
-let userClient = null;
-let userLatLng = null;
-let watchId = null;
-let isFollowing = false;
-
-// 🆕 Taxi seleccionado actualmente y si se le está siguiendo
-let selectedTaxi = null;
-let followingTaxi = null;
-
-// Para calcular velocidad aproximada de cada taxi
-let lastPositions = {}; // { taxiId: {latlng, time} }
-
-const TICK_MS = 600;
-const SPEED_M = 14;
-const FOUND_M = 35;
-
-/* =========================================================
-   5. ALTA DE CLIENTES Y TAXIS
-   ========================================================= */
-function addClient(latlng, label) {
-  const c = {
-    id: 'C' + (seq++),
-    label: label || ('Cliente ' + (clients.length + 1)),
-    latlng: L.latLng(latlng)
-  };
-  c.marker = L.marker(c.latlng, { icon: makeDot('#22c55e', false) })
-    .addTo(clientLayer)
-    .bindTooltip(() => `<b>${c.label}</b><br>🟢 Cliente activo`, { direction: 'top', offset: [0, -10] });
-  clients.push(c);
-  updateCounts();
-  return c;
-}
-
-function addTaxi(latlng, label) {
-  const t = {
-    id: 'T' + (seq++),
-    label: label || ('Taxi ' + (taxis.length + 1)),
-    latlng: L.latLng(latlng),
-    heading: Math.random() * Math.PI * 2,
-    lastLatLng: L.latLng(latlng),
-    speedKmh: 0
-  };
-  t.marker = L.marker(t.latlng, { icon: makeDot('#facc15', true) })
-    .addTo(taxiLayer)
-    .bindTooltip(() => `<b>${t.label}</b><br>🟡 Taxi activo<br><i>Click para más info</i>`, { direction: 'top', offset: [0, -10] });
-
-  // 🆕 Evento click sobre el taxi → abrir tarjeta de información
-  t.marker.on('click', (e) => {
-    L.DomEvent.stopPropagation(e);
-    selectTaxi(t);
-  });
-
-  taxis.push(t);
-  updateCounts();
-  return t;
-}
-
-/* =========================================================
-   6. MOTOR DE MOVIMIENTO
-   ========================================================= */
-function tick() {
-  if (moving) {
-    taxis.forEach(t => {
-      const prevPos = L.latLng(t.latlng);
-
-      let best = null, bestD = Infinity;
-      clients.forEach(c => {
-        const d = haversine(t.latlng, c.latlng);
-        if (d < bestD) { bestD = d; best = c; }
-      });
-
-      if (best && bestD < radius * 2) {
-        if (bestD > FOUND_M) {
-          t.latlng = stepTowards(t.latlng, best.latlng, SPEED_M);
-          t.marker.setLatLng(t.latlng);
-        }
-      } else {
-        t.heading += (Math.random() - 0.5) * 0.7;
-        const dCenter = haversine(t.latlng, L.latLng(CENTER[0], CENTER[1]));
-        if (dCenter > 2500) {
-          t.heading = Math.atan2(CENTER[1] - t.latlng.lng, CENTER[0] - t.latlng.lat);
-        }
-        t.latlng = moveBearing(t.latlng, t.heading, SPEED_M * 0.75);
-        t.marker.setLatLng(t.latlng);
-      }
-
-      // Calcular velocidad aproximada (m/s * 3.6 = km/h)
-      const dist = haversine(prevPos, t.latlng);
-      const kmh = (dist / (TICK_MS / 1000)) * 3.6;
-      t.speedKmh = kmh;
-    });
-  }
-
-  updateMatches();
-  updateNearestTaxiDistance();
-  updateTaxiInfoIfOpen();
-}
-
-/* =========================================================
-   7. LÍNEA AZUL AL TAXI MÁS CERCANO + DISTANCIA
-   ========================================================= */
-function updateNearestTaxiDistance() {
-  const el = document.getElementById('nearestTaxiDist');
-  nearestLineLayer.clearLayers();
-
-  if (!userLatLng || taxis.length === 0) {
-    el.innerHTML = '-- <small>m</small>';
-    return;
-  }
-
-  let nearest = null, minDist = Infinity;
-  taxis.forEach(t => {
-    const d = haversine(userLatLng, t.latlng);
-    if (d < minDist) { minDist = d; nearest = t; }
-  });
-
-  if (nearest) {
-    // Actualizar indicador en el panel
-    el.innerHTML = `${Math.round(minDist)} <small>m</small>`;
-
-    // 🆕 Dibujar línea azul gruesa desde el usuario al taxi más cercano
-    L.polyline([userLatLng, nearest.latlng], {
-      color: '#38bdf8',
-      weight: 4,
-      opacity: 0.9,
-      dashArray: '10 6',
-      lineCap: 'round'
-    }).addTo(nearestLineLayer);
-
-    // Pequeño círculo azul en el taxi más cercano como marca
-    L.circleMarker(nearest.latlng, {
-      radius: 12,
-      color: '#38bdf8',
-      weight: 2,
-      fill: false,
-      opacity: 0.8
-    }).addTo(nearestLineLayer);
-  } else {
-    el.innerHTML = '-- <small>m</small>';
-  }
-}
-
-/* =========================================================
-   8. DETECCIÓN DE ENCUENTROS
-   ========================================================= */
-function updateMatches() {
-  linkLayer.clearLayers();
-
-  const pairs = [];
-  taxis.forEach(t => {
-    clients.forEach(c => {
-      const d = haversine(t.latlng, c.latlng);
-      if (d <= radius) pairs.push({ t, c, d });
-    });
-  });
-  pairs.sort((a, b) => a.d - b.d);
-
-  pairs.forEach(p => {
-    const found = p.d <= FOUND_M;
-    L.polyline([p.t.latlng, p.c.latlng], {
-      color: found ? '#38bdf8' : '#94a3b8',
-      weight: found ? 3 : 2,
-      dashArray: found ? null : '6 8',
-      opacity: found ? 0.95 : 0.7
-    }).addTo(linkLayer);
-  });
-
-  document.getElementById('mCount').textContent = pairs.length;
-
-  const ul = document.getElementById('matches');
-  if (!pairs.length) {
-    ul.innerHTML = '<li class="empty">No hay taxis y clientes dentro del rango.<br>Sube el rango o acerca un taxi.</li>';
-    return;
-  }
-
-  ul.innerHTML = pairs.slice(0, 30).map(p => {
-    const found = p.d <= FOUND_M;
-    return `<li data-t="${p.t.id}" data-c="${p.c.id}" class="${found ? 'found' : ''}">
-      <span class="pair"><b>${p.t.label}</b> ↔ <b>${p.c.label}</b></span>
-      <span class="dist">${found ? '✅ Encontrados' : Math.round(p.d) + ' m'}</span>
-    </li>`;
-  }).join('');
-
-  ul.querySelectorAll('li[data-t]').forEach(li => {
-    li.onclick = () => {
-      const t = taxis.find(x => x.id === li.dataset.t);
-      const c = clients.find(x => x.id === li.dataset.c);
-      if (t && c) {
-        map.fitBounds(L.latLngBounds([t.latlng, c.latlng]).pad(0.8), { maxZoom: 17 });
-      }
-    };
-  });
-}
-
-function updateCounts() {
-  document.getElementById('cCount').textContent = clients.length;
-  document.getElementById('tCount').textContent = taxis.length;
-}
-
-/* =========================================================
-   9. SELECCIÓN Y TARJETA DE INFORMACIÓN DEL TAXI
-   ========================================================= */
-function selectTaxi(taxi) {
-  // Quitar selección previa
-  if (selectedTaxi && selectedTaxi.marker) {
-    selectedTaxi.marker.setIcon(makeDot('#facc15', true));
-  }
-
-  selectedTaxi = taxi;
-
-  // Cambiar el icono para mostrar el anillo de selección
-  taxi.marker.setIcon(L.divIcon({
-    className: 'dot-wrap',
-    html: `<span class="dot pulse selected" style="--c:#facc15"></span>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9]
-  }));
-
-  // Mostrar la tarjeta
-  const info = document.getElementById('taxiInfo');
-  info.classList.add('visible');
-
-  updateTaxiInfoIfOpen();
-}
-
-function closeTaxiInfo() {
-  if (selectedTaxi && selectedTaxi.marker) {
-    selectedTaxi.marker.setIcon(makeDot('#facc15', true));
-  }
-  selectedTaxi = null;
-  followingTaxi = null;
-  document.getElementById('taxiInfo').classList.remove('visible');
-  document.getElementById('tiSeguir').classList.remove('active');
-  document.getElementById('tiSeguir').textContent = '📡 Seguir';
-}
-
-/* 🆕 Actualiza el contenido de la tarjeta con datos en vivo */
-function updateTaxiInfoIfOpen() {
-  if (!selectedTaxi) return;
-  const t = selectedTaxi;
-
-  // Nombre
-  document.getElementById('tiNombre').textContent = t.label;
-
-  // Distancia del usuario al taxi
-  const distUser = userLatLng ? haversine(userLatLng, t.latlng) : null;
-  document.getElementById('tiDistUser').textContent = distUser !== null ? formatDist(distUser) : 'Sin ubicación';
-
-  // Cliente más cercano al taxi
-  let nearestClient = null, minD = Infinity;
-  clients.forEach(c => {
-    const d = haversine(t.latlng, c.latlng);
-    if (d < minD) { minD = d; nearestClient = c; }
-  });
-
-  if (nearestClient) {
-    document.getElementById('tiClienteCercano').textContent = nearestClient.label;
-    document.getElementById('tiDistCliente').textContent = formatDist(minD);
-  } else {
-    document.getElementById('tiClienteCercano').textContent = '—';
-    document.getElementById('tiDistCliente').textContent = '—';
-  }
-
-  // Estado
-  const estadoEl = document.getElementById('tiEstado');
-  if (nearestClient && minD <= FOUND_M) {
-    estadoEl.innerHTML = '<span class="info-badge found">✅ Con cliente</span>';
-  } else if (nearestClient && minD <= radius) {
-    estadoEl.innerHTML = '<span class="info-badge busy">🟡 En camino</span>';
-  } else {
-    estadoEl.innerHTML = '<span class="info-badge free">🟢 Libre</span>';
-  }
-
-  // Velocidad
-  const kmh = t.speedKmh || 0;
-  let velClass = 'val';
-  if (kmh < 1) velClass += ' bad';
-  else if (kmh > 40) velClass += ' warn';
-  else velClass += ' ok';
-  document.getElementById('tiVelocidad').innerHTML =
-    `<span class="${velClass}">${kmh.toFixed(1)} km/h</span>`;
-
-  // Coordenadas
-  document.getElementById('tiCoords').textContent =
-    `${t.latlng.lat.toFixed(6)}, ${t.latlng.lng.toFixed(6)}`;
-}
-
-// Botón cerrar
-document.getElementById('tiCerrar').onclick = closeTaxiInfo;
-
-// Botón centrar en el taxi
-document.getElementById('tiCentrar').onclick = () => {
-  if (selectedTaxi) {
-    map.setView(selectedTaxi.latlng, Math.max(map.getZoom(), 16), { animate: true });
-  }
-};
-
-// Botón seguir al taxi (mantiene el mapa centrado en él)
-document.getElementById('tiSeguir').onclick = function() {
-  if (!selectedTaxi) return;
-  if (followingTaxi === selectedTaxi) {
-    followingTaxi = null;
-    this.classList.remove('active');
-    this.textContent = '📡 Seguir';
-  } else {
-    followingTaxi = selectedTaxi;
-    this.classList.add('active');
-    this.textContent = '⏸ Dejar de seguir';
-    map.setView(selectedTaxi.latlng, Math.max(map.getZoom(), 16), { animate: true });
-  }
-};
-
-// En cada tick, si estamos siguiendo un taxi, centrar el mapa en él
-function updateFollowTaxi() {
-  if (followingTaxi && followingTaxi.marker) {
-    map.panTo(followingTaxi.latlng, { animate: true, duration: 0.4 });
-  }
-}
-setInterval(updateFollowTaxi, 700);
-
-/* =========================================================
-   10. SEGUIMIENTO DE UBICACIÓN EN TIEMPO REAL
-   ========================================================= */
-function startTracking() {
-  if (!navigator.geolocation) {
-    alert('Tu navegador no soporta geolocalización.');
-    return;
-  }
-
-  if (watchId) navigator.geolocation.clearWatch(watchId);
-
-  watchId = navigator.geolocation.watchPosition(
-    pos => {
-      const ll = L.latLng(pos.coords.latitude, pos.coords.longitude);
-      userLatLng = ll;
-
-      if (!userClient) {
-        userClient = addClient(ll, 'Tú (mi ubicación)');
-        userClient.marker.setIcon(makeDot('#38bdf8', true));
-        userClient.isUser = true;
-      } else {
-        userClient.latlng = ll;
-        userClient.marker.setLatLng(ll);
-      }
-
-      if (isFollowing) {
-        map.setView(ll, map.getZoom());
-      }
-
-      updateNearestTaxiDistance();
-      updateMatches();
-    },
-    err => {
-      console.warn('Error de geolocalización:', err);
-      if (err.code === 1) {
-        alert('Permiso de ubicación denegado.\n\n' +
-              'Para solucionarlo en Chrome:\n' +
-              '1. Haz clic en el candado 🔒 junto a la URL.\n' +
-              '2. Cambia "Ubicación" a "Permitir".\n' +
-              '3. Recarga la página.');
-      } else if (err.code === 2) {
-        alert('No se pudo determinar tu ubicación. Verifica tu GPS o conexión.');
-      } else {
-        alert('La solicitud de ubicación tardó demasiado. Intenta de nuevo.');
-      }
-    },
-    { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
-  );
-}
-
-/* =========================================================
-   11. CONTROLES DE UI
-   ========================================================= */
 const $ = id => document.getElementById(id);
 
-const panel = $('panel');
-const togglePanelBtn = $('togglePanel');
-const closePanelBtn = $('closePanel');
-
-function togglePanelVisibility() {
-  const isHidden = panel.classList.toggle('hidden');
-  togglePanelBtn.classList.toggle('visible', isHidden);
-  setTimeout(() => map.invalidateSize(), 320);
+/* ---------- Carga de Leaflet con CDN de respaldo ---------- */
+const LEAFLET_CDNS = [
+  ['https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css', 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js'],
+  ['https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css', 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js'],
+  ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js']
+];
+function loadLeaflet(){
+  return LEAFLET_CDNS.reduce((chain, [css, js]) => chain.catch(() => new Promise((resolve, reject) => {
+    if (window.L) return resolve();
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = css; document.head.appendChild(l);
+    const s = document.createElement('script'); s.src = js;
+    s.onload = () => window.L ? resolve() : reject();
+    s.onerror = reject;
+    document.head.appendChild(s);
+  })), Promise.reject());
 }
-
-closePanelBtn.onclick = togglePanelVisibility;
-togglePanelBtn.onclick = togglePanelVisibility;
-
-$('radius').addEventListener('input', e => {
-  radius = +e.target.value;
-  $('radLabel').textContent = radius + ' m';
-  updateMatches();
-});
-
-function setAddMode(mode) {
-  addMode = (addMode === mode) ? null : mode;
-  $('addClient').classList.toggle('active', addMode === 'client');
-  $('addTaxi').classList.toggle('active', addMode === 'taxi');
-  $('map').classList.toggle('adding', !!addMode);
+const leafletReady = loadLeaflet();
+function leafletFailed(){
+  $('welcome').classList.remove('hide');
+  $('stepRole').classList.add('hide');
+  $('stepForm').classList.remove('hide');
+  $('err').classList.remove('hide');
 }
-
-$('addClient').onclick = () => setAddMode('client');
-$('addTaxi').onclick   = () => setAddMode('taxi');
-
-map.on('click', e => {
-  // Click en el mapa vacío → cerrar tarjeta si está abierta
-  if (selectedTaxi) {
-    closeTaxiInfo();
-    return;
-  }
-  if (addMode === 'client')      addClient(e.latlng);
-  else if (addMode === 'taxi')   addTaxi(e.latlng);
-  if (addMode) setAddMode(addMode);
-  updateMatches();
-});
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    if (selectedTaxi) closeTaxiInfo();
-    else if (addMode) setAddMode(addMode);
-    else if (!panel.classList.contains('hidden')) togglePanelVisibility();
-  }
-});
-
-$('toggleMove').onclick = () => {
-  moving = !moving;
-  $('toggleMove').textContent = moving ? '⏸ Pausar taxis' : '▶ Reanudar taxis';
-  $('toggleMove').classList.toggle('active', !moving);
+const CENTER = [23.1249, -82.3631];
+const STALE_MS = 10000, PREFIX = 'tm:u:';
+const store = {
+  get(k){ try{ return JSON.parse(sessionStorage.getItem(k)); }catch(e){ return null; } },
+  set(k,v){ try{ sessionStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
 
-$('followToggle').onclick = () => {
-  isFollowing = !isFollowing;
-  $('followToggle').classList.toggle('active', isFollowing);
-  if (isFollowing) {
-    if (!userLatLng) {
-      startTracking();
-    } else {
-      map.setView(userLatLng, map.getZoom());
+let me = store.get('tm:me');
+let myPos = null, watchId = null, map = null, myMarker = null, nearLine = null;
+const markers = {};
+
+/* ---------- Sincronización (localStorage entre pestañas del mismo navegador).
+   Para uso real con varios dispositivos, reemplaza publish() y readAll()
+   por tu backend (WebSocket, Firebase, Supabase...). ---------- */
+function publish(){
+  if (!me || !myPos) return;
+  try{ localStorage.setItem(PREFIX + me.id, JSON.stringify({...me, lat:myPos.lat, lng:myPos.lng, ts:Date.now()})); }catch(e){}
+}
+function readAll(){
+  const out = [];
+  try{
+    for (let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if (!k.startsWith(PREFIX)) continue;
+      const u = JSON.parse(localStorage.getItem(k));
+      if (Date.now() - u.ts > STALE_MS){ localStorage.removeItem(k); continue; }
+      if (u.id !== me.id) out.push(u);
     }
-  }
-};
-
-$('locate').onclick = () => {
-  startTracking();
-  isFollowing = true;
-  $('followToggle').classList.add('active');
-  if (userLatLng) {
-    map.setView(userLatLng, 16);
-  }
-};
-
-$('reset').onclick = () => generateInitial();
-
-map.on('dragstart', () => {
-  if (isFollowing) {
-    isFollowing = false;
-    $('followToggle').classList.remove('active');
-  }
-  // Si estamos siguiendo un taxi y el usuario arrastra, dejamos de seguirlo
-  if (followingTaxi) {
-    followingTaxi = null;
-    const btn = $('tiSeguir');
-    if (btn) { btn.classList.remove('active'); btn.textContent = '📡 Seguir'; }
-  }
-});
-
-/* =========================================================
-   12. ARRANQUE
-   ========================================================= */
-function generateInitial() {
-  clientLayer.clearLayers();
-  taxiLayer.clearLayers();
-  linkLayer.clearLayers();
-  nearestLineLayer.clearLayers();
-  clients = [];
-  taxis = [];
-  seq = 1;
-  userClient = null;
-  selectedTaxi = null;
-  followingTaxi = null;
-  closeTaxiInfo();
-
-  moving = true;
-  $('toggleMove').textContent = '⏸ Pausar taxis';
-  $('toggleMove').classList.remove('active');
-
-  for (let i = 0; i < 5; i++) addClient(randomAround(CENTER, 1200));
-  for (let i = 0; i < 4; i++) addTaxi(randomAround(CENTER, 1600));
-
-  updateCounts();
-  updateMatches();
-  updateNearestTaxiDistance();
+  }catch(e){}
+  return out;
 }
 
-generateInitial();
-setInterval(tick, TICK_MS);
+/* ---------- Utilidades ---------- */
+function dist(a, b){
+  const r = Math.PI/180, dLa=(b.lat-a.lat)*r, dLn=(b.lng-a.lng)*r;
+  const s = Math.sin(dLa/2)**2 + Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLn/2)**2;
+  return 2*6371000*Math.asin(Math.sqrt(s));
+}
+const fmt = m => m < 1000 ? Math.round(m)+' m' : (m/1000).toFixed(2)+' km';
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const icon = (c, cls='') => L.divIcon({className:'', html:`<span class="dot ${cls}" style="--c:${c}"></span>`, iconSize:[20,20], iconAnchor:[10,10]});
+
+/* ---------- Bienvenida ---------- */
+let role = null;
+document.querySelectorAll('[data-role]').forEach(b => b.onclick = () => {
+  role = b.dataset.role;
+  $('formTitle').textContent = role === 'taxista' ? 'Datos del taxista' : 'Datos del cliente';
+  document.querySelectorAll('.driver').forEach(el => el.classList.toggle('hide', role !== 'taxista'));
+  $('stepRole').classList.add('hide'); $('stepForm').classList.remove('hide');
+});
+$('back').onclick = () => { $('stepForm').classList.add('hide'); $('stepRole').classList.remove('hide'); };
+
+$('enter').onclick = () => {
+  const v = id => $(id).value.trim();
+  const need = role === 'taxista' ? ['fNombre','fTel','fMat','fColor'] : ['fNombre','fTel'];
+  const bad = need.find(id => !v(id));
+  if (bad){ $(bad).focus(); return; }
+  me = { id: 'u' + Math.random().toString(36).slice(2,9), role, nombre: v('fNombre'), tel: v('fTel') };
+  if (role === 'taxista'){ me.matricula = v('fMat').toUpperCase(); me.color = v('fColor'); }
+  store.set('tm:me', me);
+  goFullscreen();
+  leafletReady.then(start, leafletFailed);
+};
+
+/* ---------- Pantalla completa ---------- */
+function goFullscreen(){
+  const el = document.documentElement;
+  if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+}
+$('fs').onclick = () => document.fullscreenElement ? document.exitFullscreen() : goFullscreen();
+$('exit').onclick = () => {
+  try{ localStorage.removeItem(PREFIX + me.id); }catch(e){}
+  sessionStorage.removeItem('tm:me');
+  if (document.fullscreenElement) document.exitFullscreen();
+  location.reload();
+};
+window.addEventListener('pagehide', () => { try{ if (me) localStorage.removeItem(PREFIX + me.id); }catch(e){} });
+
+/* ---------- App ---------- */
+function start(){
+  $('welcome').classList.add('hide');
+  $('bar').classList.remove('hide');
+  $('status').classList.remove('hide');
+
+  if (!map){
+    map = L.map('map').setView(CENTER, 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+    map.on('click', e => { if (!watchId || !hasGps) setPos(e.latlng); }); // sin GPS: toca el mapa para ubicarte
+  }
+  setTimeout(() => map.invalidateSize(), 100);
+
+  if (navigator.geolocation){
+    watchId = navigator.geolocation.watchPosition(
+      p => { hasGps = true; const first = !myPos; setPos(L.latLng(p.coords.latitude, p.coords.longitude)); if (first) map.setView(myPos, 16); },
+      () => { if (!myPos) status('Sin GPS. <b>Toca el mapa</b> para marcar tu posición.'); },
+      { enableHighAccuracy:true, maximumAge:5000, timeout:15000 }
+    );
+  } else status('Sin GPS. <b>Toca el mapa</b> para marcar tu posición.');
+
+  setInterval(() => { publish(); render(); }, 2000);
+  window.addEventListener('storage', e => { if (e.key && e.key.startsWith(PREFIX)) render(); });
+  render();
+}
+let hasGps = false;
+
+function setPos(ll){
+  myPos = ll;
+  const c = me.role === 'taxista' ? '#facc15' : '#38bdf8';
+  if (!myMarker) myMarker = L.marker(ll, {icon: icon(c,'me'), zIndexOffset:1000}).addTo(map).bindTooltip('Tú');
+  else myMarker.setLatLng(ll);
+  publish(); render();
+}
+
+function status(html){ $('status').innerHTML = html; }
+
+function popup(u, d){
+  const base = `<div class="pop"><b>${esc(u.nombre)}</b><div>📞 <a href="tel:${esc(u.tel)}">${esc(u.tel)}</a></div>`;
+  const car = u.role === 'taxista' ? `<div>🚗 ${esc(u.matricula)} · ${esc(u.color)}</div>` : '';
+  return base + car + (d != null ? `<div>📍 ${fmt(d)}</div>` : '') + '</div>';
+}
+
+function render(){
+  if (!map || !me) return;
+  const target = me.role === 'cliente' ? 'taxista' : 'cliente';
+  const others = readAll().filter(u => u.role === target);
+  const seen = new Set();
+
+  others.forEach(u => {
+    seen.add(u.id);
+    const ll = L.latLng(u.lat, u.lng);
+    const d = myPos ? dist(myPos, ll) : null;
+    if (!markers[u.id]){
+      markers[u.id] = L.marker(ll, {icon: icon(u.role === 'taxista' ? '#facc15' : '#22c55e')}).addTo(map).bindPopup('');
+    }
+    markers[u.id].setLatLng(ll).setPopupContent(popup(u, d));
+  });
+  Object.keys(markers).forEach(id => { if (!seen.has(id)){ map.removeLayer(markers[id]); delete markers[id]; } });
+
+  if (nearLine){ map.removeLayer(nearLine); nearLine = null; }
+  const label = me.role === 'cliente' ? 'Taxis disponibles' : 'Clientes esperando';
+  if (!myPos) return status(`<b>${label}: ${others.length}</b><small>Esperando tu ubicación…</small>`);
+  if (!others.length) return status(`<b>${label}: 0</b><small>Nadie conectado por ahora.</small>`);
+
+  const sorted = others.map(u => ({u, d: dist(myPos, L.latLng(u.lat, u.lng))})).sort((a,b) => a.d - b.d);
+  const n = sorted[0];
+  nearLine = L.polyline([myPos, [n.u.lat, n.u.lng]], {color:'#2563eb', weight:4, dashArray:'10 6'}).addTo(map);
+  const extra = n.u.role === 'taxista' ? ` · ${esc(n.u.matricula)} (${esc(n.u.color)})` : '';
+  status(`<b>${label}: ${others.length}</b><small>Más cercano: ${esc(n.u.nombre)}${extra} · <b>${fmt(n.d)}</b></small>`);
+}
+
+/* Si ya había sesión en esta pestaña, entra directo */
+if (me) leafletReady.then(start, leafletFailed);
 </script>
 </body>
 </html>
